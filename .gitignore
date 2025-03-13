@@ -1,0 +1,45 @@
+# 忽略操作系统特定的文件
+*.pyc
+__pycache__/
+
+# 忽略IDE的配置文件和目录，例如PyCharm的.idea目录
+.idea/
+
+# 忽略虚拟环境目录
+.venv/
+
+# 忽略数据库文件
+db.sqlite3
+
+# 忽略大型数据集目录
+MOOCcube/
+
+# 忽略其他可能生成的不需要提交的文件
+*.log
+*.swp
+.DS_Store
+
+# 忽略Python的编译输出（如果你使用Cython或其他需要编译Python的工具）
+*.so
+*.pyd
+*.dll
+*.lib
+
+# 忽略迁移文件（通常只在开发过程中生成，并在部署时重新生成）
+#recommender/migrations/
+#MOOC_Recommender/migrations/
+# 注意：如果你希望保留某些特定的迁移文件，可以只忽略自动生成的部分，例如：
+# recommender/migrations/__pycache__/
+# MOOC_Recommender/migrations/__pycache__/
+# 但这通常不是必要的，因为迁移文件通常会在部署时根据模型变化重新生成。
+
+# 如果你有静态文件或媒体文件目录，并且它们很大或者包含用户上传的内容，也可以忽略它们
+# 例如：
+# static/
+# media/
+# 注意：这些目录通常应该被包含在.gitignore中，但如果你将它们用于版本控制（例如，包含第三方库的静态文件），则可能需要保留它们。
+
+# 忽略其他可能不需要提交的文件或目录，根据你的项目需求添加
+# 例如，如果你有一个用于数据导入的脚本，但不想将其提交到版本控制中（尽管在这个例子中import_data.py是应该被提交的），你可以这样写：
+# /path/to/specific/script_or_directory/
+# 但在这个Django项目中，import_data.py是应该被提交的，所以我们不忽略它。
