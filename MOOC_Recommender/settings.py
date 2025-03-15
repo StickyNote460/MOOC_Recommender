@@ -77,7 +77,8 @@ WSGI_APPLICATION = 'MOOC_Recommender.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        #'NAME': BASE_DIR / 'db.sqlite3',
+        'NAME': 'D:/Code/python/MOOC_Recommender/db.sqlite3',  # 显式绝对路径
     }
 }
 
