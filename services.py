@@ -2,8 +2,10 @@
 import os
 import django
 import sys
+import re
 import networkx as nx
-from django.db.models import Prefetch
+from django.db.models import Q, Count
+from django.core.exceptions import ObjectDoesNotExist
 
 # 初始化 Django 环境
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -14,79 +16,143 @@ django.setup()
 from recommender.models import Course, Concept, PrerequisiteDependency, CourseConcept
 
 
-def build_concept_graph():
-    """构建概念依赖图（包含所有概念及其依赖关系）"""
-    G = nx.DiGraph()
-    # 添加所有概念节点
-    all_concepts = Concept.objects.all()
-    for concept in all_concepts:
-        G.add_node(concept.id)
-    # 添加依赖边
-    for dep in PrerequisiteDependency.objects.select_related('prerequisite', 'target').all():
-        if dep.prerequisite.id in G and dep.target.id in G:
-            G.add_edge(dep.prerequisite.id, dep.target.id)
-    return G
+# --------------------------
+# 文本解析模块
+# --------------------------
+
+def extract_course_names(text):
+    """从复杂文本中提取有效课程名称"""
+    # 清洗文本并分段
+    text = re.sub(r'[\n\r\t\u3000]+', ' ', text)
+    text = re.sub(r'[^\w\u4e00-\u9fa5、，,\.]', ' ', text)
+
+    # 匹配课程名称模式（至少2个中文字符开头）
+    pattern = r'([\u4e00-\u9fa5]{2,}(?:[\s\-·\.][\u4e00-\u9fa5]+)*)'
+    matches = re.findall(pattern, text)
+
+    # 过滤无效词
+    stop_words = {'无', '基础', '知识', '能力', '相关', '课程', '要求'}
+    return [name.strip('、，, ')
+            for name in matches
+            if len(name) > 1 and name not in stop_words]
 
 
-def get_required_prerequisites(target_course):
-    """获取目标课程所需的所有前驱概念（递归祖先）"""
-    # 获取目标课程直接关联的概念
-    target_concepts = set(target_course.concepts.values_list('id', flat=True))
+# --------------------------
+# 课程匹配模块
+# --------------------------
 
+def match_courses(names):
+    """分优先级匹配课程（精确→模糊）"""
+    matched = set()
+
+    # 第一轮：精确匹配
+    exact_matches = Course.objects.filter(name__in=names)
+    matched.update(exact_matches)
+    remaining = set(names) - set(m.name for m in exact_matches)
+
+    # 第二轮：模糊匹配（名称包含）
+    for name in remaining:
+        clean_name = re.sub(r'(基础|导论|高级|实践)$', '', name)
+        qs = Course.objects.filter(name__icontains=clean_name)
+        if qs.exists():
+            matched.add(qs.first())
+
+    return list(matched)
+
+
+# --------------------------
+# 概念覆盖计算模块
+# --------------------------
+
+def get_concept_coverage(target_course):
+    """计算概念覆盖信息"""
     # 构建概念依赖图
-    G = build_concept_graph()
+    G = nx.DiGraph()
+    concepts = {c.id: c for c in Concept.objects.all()}
+    for c in concepts.values():
+        G.add_node(c.id)
+    for dep in PrerequisiteDependency.objects.all():
+        G.add_edge(dep.prerequisite.id, dep.target.id)
 
-    # 收集所有祖先概念
-    required_concepts = set()
-    for cid in target_concepts:
-        required_concepts.update(nx.ancestors(G, cid))
-
-    return required_concepts
-
-
-def recommend_top3_courses(required_concepts, exclude_course_id):
-    """推荐覆盖最多前驱概念的前三门课程（无需排序）"""
-    # 获取候选课程（排除目标课程自身）
-    candidates = Course.objects.exclude(id=exclude_course_id).prefetch_related('concepts')
-
-    # 计算每个课程覆盖的前驱概念数量
-    course_scores = []
-    for course in candidates:
-        course_concepts = set(course.concepts.values_list('id', flat=True))
-        overlap = len(course_concepts & required_concepts)
-        if overlap > 0:
-            course_scores.append((overlap, course))
-
-    # 按覆盖数降序排序，取前三
-    course_scores.sort(reverse=True, key=lambda x: x[0])
-    top3 = [course for _, course in course_scores[:3]]
-
-    return top3
-
-
-def generate_path(target_course):
-    """生成推荐路径：C1, C2, C3 --> Origin"""
     # 获取所有必需前驱概念
-    required_concepts = get_required_prerequisites(target_course)
+    target_concepts = set(target_course.concepts.values_list('id', flat=True))
+    required = set()
+    for cid in target_concepts:
+        required.update(nx.ancestors(G, cid))
+    required = required - target_concepts  # 排除自身
 
-    # 推荐前三课程
-    top3 = recommend_top3_courses(required_concepts, target_course.id)
+    if not required:
+        return None, None  # 无前驱概念
 
-    if not top3:
-        return [target_course.name]
+    # 获取覆盖这些概念的课程
+    candidates = Course.objects.exclude(id=target_course.id).annotate(
+        coverage=Count('concepts', filter=Q(concepts__id__in=required)))
 
-    # 生成路径（前三课程集合 + 目标课程）
-    path = [course.name for course in top3]
-    path.append(target_course.name)
-    return path
+    # 计算覆盖度
+    total = len(required)
+    valid_candidates = []
+    for course in candidates:
+        coverage_rate = course.coverage / total if total > 0 else 0
+    if coverage_rate > 0.6:
+        valid_candidates.append((coverage_rate, course))
+
+    return required, valid_candidates
+
+
+# --------------------------
+# 核心推荐逻辑
+# --------------------------
+
+def generate_recommendation(target_course):
+    """生成推荐路径"""
+    # 第一阶段：解析prerequisites字段
+    if target_course.prerequisites:
+        # 提取课程名称并匹配
+        names = extract_course_names(target_course.prerequisites)
+        if names:
+            matched = match_courses(names)
+            if matched:
+                return [c.name for c in matched], True
+
+    # 第二阶段：基于概念覆盖推荐
+    required, candidates = get_concept_coverage(target_course)
+
+    if not required:
+        return ["本课程为基础课，无前继课程"], False
+
+    if not candidates:
+        return ["无满足覆盖要求的前继课程,即本课程为基础课程"], False
+
+    # 按覆盖率和课程质量排序
+    candidates.sort(reverse=True, key=lambda x: (x[0], -x[1].difficulty))
+    top3 = [c[1] for c in candidates[:3]]
+
+    return [c.name for c in top3], True
+
+
+# --------------------------
+# 执行入口
+# --------------------------
+
+def format_output(path, is_valid):
+    """格式化输出结果"""
+    if is_valid and len(path) > 1:
+        return " → ".join(path[:-1]) + " --> " + path[-1]
+    return path[0]
 
 
 if __name__ == "__main__":
     try:
-        target_course = Course.objects.get(name="编译技术")
-        path = generate_path(target_course)
-        print("推荐路径:", " , ".join(path[:-1]) + " ---> " + path[-1])
-    except Course.DoesNotExist:
-        print("错误：课程不存在")
+        # 示例测试（修改课程名称测试不同情况）
+        course_name = "操作系统（自主模式）"
+        target = Course.objects.get(name=course_name)
+
+        # 生成推荐路径
+        path, valid = generate_recommendation(target)
+
+        # 格式化输出
+        print("推荐路径:", format_output(path, valid))
+    except ObjectDoesNotExist:
+        print(f"错误：课程 {course_name} 不存在")
     except Exception as e:
-        print("运行错误:", str(e))
+        print(f"运行时错误: {str(e)}")
