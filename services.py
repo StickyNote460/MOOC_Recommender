@@ -3,6 +3,7 @@ import os
 import django
 import sys
 import networkx as nx
+from networkx import strongly_connected_components
 from django.db.models import Prefetch
 
 # 初始化 Django 环境
@@ -12,6 +13,9 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'MOOC_Recommender.settings')
 django.setup()
 
 from recommender.models import Course, Concept, PrerequisiteDependency, CourseConcept
+
+# 新增常量：最大循环处理次数
+MAX_CYCLE_RETRY = 3
 
 
 def build_concept_graph():
@@ -34,8 +38,52 @@ def build_concept_graph():
     return G
 
 
-def generate_prerequisite_path(target_course):
-    """生成目标课程的前置学习路径"""
+# 新增循环处理函数
+def handle_cycles(course_G):
+    """处理课程依赖图中的循环依赖"""
+    # 找到所有强连通分量（SCCs）
+    sccs = list(strongly_connected_components(course_G))
+    cycles = [scc for scc in sccs if len(scc) > 1]  # 只保留实际循环
+
+    for cycle in cycles:
+        print(f"检测到循环依赖: {cycle}")
+        course_G = break_cycle_edges(course_G, cycle)
+
+    return course_G
+
+
+# 新增断边策略函数
+def break_cycle_edges(course_G, cycle):
+    """断开循环中的一条边（策略：断开覆盖概念最少的边）"""
+    edges_in_cycle = [
+        (u, v) for u, v in course_G.edges()
+        if u in cycle and v in cycle
+    ]
+
+    if not edges_in_cycle:
+        return course_G
+
+    # 计算每条边的权重（目标课程覆盖的概念数）
+    edge_weights = {}
+    for u, v in edges_in_cycle:
+        weight = len(course_G.nodes[v].get('concepts', set()))
+        edge_weights[(u, v)] = weight
+
+    # 断开权重最小的边
+    min_weight = min(edge_weights.values())
+    candidates = [edge for edge, w in edge_weights.items() if w == min_weight]
+    edge_to_remove = candidates[0] if candidates else edges_in_cycle[0]
+
+    course_G.remove_edge(*edge_to_remove)
+    print(f"已断开循环边: {edge_to_remove}")
+    return course_G
+
+
+def generate_prerequisite_path(target_course, retry_count=0):
+    """生成目标课程的前置学习路径（含循环处理）"""
+    if retry_count > MAX_CYCLE_RETRY:
+        return ["错误：无法解决循环依赖，请检查课程设置！"]
+
     # 获取目标课程关联的所有概念
     course_concepts = target_course.concepts.all()
     concept_ids = [c.id for c in course_concepts]
@@ -59,15 +107,15 @@ def generate_prerequisite_path(target_course):
     course_G = nx.DiGraph()
     course_G.add_node(target_course.id)
 
-    # 预加载课程概念映射
-    course_concept_map = {
-        c.id: set(c.concepts.values_list('id', flat=True))
-        for c in candidates
-    }
+    # 预加载课程概念映射并添加属性
+    course_concept_map = {}
+    for c in candidates:
+        concepts = set(c.concepts.values_list('id', flat=True))
+        course_concept_map[c.id] = concepts
+        course_G.add_node(c.id, concepts=concepts)  # 新增属性存储
 
     # 建立课程间依赖关系
     for c1 in candidates:
-        course_G.add_node(c1.id)
         for c2 in candidates:
             if c1.id == c2.id:
                 continue
@@ -83,11 +131,13 @@ def generate_prerequisite_path(target_course):
         if any(cid in required_concepts for cid in course_concept_map[c.id]):
             course_G.add_edge(c.id, target_course.id)
 
-    # 拓扑排序
+    # 拓扑排序与循环处理
     try:
         sorted_ids = list(nx.topological_sort(course_G))
     except nx.NetworkXUnfeasible:
-        return ["检测到循环依赖，请检查课程设置！"]
+        print(f"检测到循环依赖，尝试自动修复（{retry_count + 1}/{MAX_CYCLE_RETRY}）...")
+        course_G = handle_cycles(course_G)
+        return generate_prerequisite_path(target_course, retry_count + 1)
 
     # 映射课程ID到名称
     id_to_name = {c.id: c.name for c in candidates}
@@ -96,7 +146,7 @@ def generate_prerequisite_path(target_course):
     # 过滤并生成路径
     path = []
     for cid in sorted_ids:
-        if cid == target_course.id and len(path) > 0:  # 目标课程放在最后
+        if cid == target_course.id and len(path) > 0:
             continue
         if cid in id_to_name:
             path.append(id_to_name[cid])
