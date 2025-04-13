@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    {% load static %}  <!-- 正确加载 static 标签库 -->
+    <meta charset="UTF-8">
+    <title>课程路径推荐系统</title>
+    <!-- 确保所有 static 标签有路径参数 -->
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+    <div class="container">
+        <!-- 搜索区域 -->
+        <div class="search-box">
+            <input type="text" id="courseInput" placeholder="输入课程名称（如：操作系统）">
+            <button onclick="searchCourse()">智能推荐</button>
+        </div>
+
+        <!-- 推荐结果 -->
+        <div class="result-card">
+            <h3>推荐学习路径</h3>
+            <div id="pathResult" class="path-result"></div>
+        </div>
+
+        <!-- 知识图谱可视化 -->
+        <div class="graph-container">
+            <h3>课程依赖关系图</h3>
+            <div id="graphCanvas"></div>
+        </div>
+    </div>
+
+    <!-- 确保所有 static 标签有路径参数 -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="{% static 'js/d3-graph.js' %}"></script>
+    <script src="{% static 'js/app.js' %}"></script>
+</body>
+</html>

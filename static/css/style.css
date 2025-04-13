@@ -1,0 +1,78 @@
+/* 基础样式 */
+body {
+    font-family: '微软雅黑', sans-serif;
+    background: #f0f2f5;
+    margin: 0;
+    padding: 20px;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+/* 搜索框样式 */
+.search-box {
+    background: white;
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    margin-bottom: 30px;
+    display: flex;
+    gap: 15px;
+}
+
+#courseInput {
+    flex: 1;
+    padding: 12px;
+    border: 2px solid #1890ff;
+    border-radius: 6px;
+    font-size: 16px;
+}
+
+button {
+    background: #1890ff;
+    color: white;
+    border: none;
+    padding: 12px 30px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.3s;
+}
+
+button:hover {
+    background: #096dd9;
+}
+
+/* 结果卡片 */
+.result-card {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    margin-bottom: 30px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.path-result {
+    font-size: 18px;
+    color: #333;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    margin-top: 15px;
+}
+
+/* 可视化容器 */
+.graph-container {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+#graphCanvas {
+    width: 100%;
+    height: 600px;
+    border: 1px solid #eee;
+    margin-top: 20px;
+}

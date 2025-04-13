@@ -14,12 +14,15 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+#MOOC_Recommender/urls.py
 from django.contrib import admin
 from django.urls import path
-
 from recommender import views
 
 urlpatterns = [
-    #path('admin/', admin.site.urls),
-    path('recommender/',views.index),  #path(，)需要两个参数，前者是字符串，规定URL；后者是触发的函数名
+    path('admin/', admin.site.urls),
+    path('recommender/', views.index_view, name='index'),
+    path('api/recommend/', views.recommend_api, name='recommend_api'),
+    # 新增根路径路由，直接渲染 index.html
+    path('', views.index_view, name='root'),  # ✅ 添加这一行
 ]

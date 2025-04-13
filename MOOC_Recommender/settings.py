@@ -9,7 +9,7 @@ https://docs.djangoproject.com/en/5.1/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
-
+#MOOC_Recommender/settings.py
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -24,7 +24,6 @@ SECRET_KEY = 'django-insecure-t^%hbiku1a#73pr#@=(zgai&qmy3_j29z(90j%htra0wk@^f8k
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
-
 ALLOWED_HOSTS = []
 
 
@@ -51,11 +50,12 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'MOOC_Recommender.urls'
-
+import os
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        #原本'DIRS': [],
+        'DIRS': [os.path.join(BASE_DIR, 'templates')],  #新加入
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -67,6 +67,8 @@ TEMPLATES = [
         },
     },
 ]
+STATIC_URL = 'static/'
+STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
 
 WSGI_APPLICATION = 'MOOC_Recommender.wsgi.application'
 
