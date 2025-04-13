@@ -21,7 +21,7 @@ from recommender import views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('recommender/', views.index_view, name='index'),
+    path('api/recommender/', views.index_view, name='index'),#新增一个api
     path('api/recommend/', views.recommend_api, name='recommend_api'),
     # 新增根路径路由，直接渲染 index.html
     path('', views.index_view, name='root'),  # ✅ 添加这一行

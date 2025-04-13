@@ -1,6 +1,7 @@
 # recommender/views.py
 from django.shortcuts import render  # 使用Django内置的render函数
 from django.http import JsonResponse
+import json
 
 from MOOC_Recommender import settings
 from .models import Course
@@ -26,12 +27,12 @@ def recommend_api(request):
     course_name = request.GET.get('course', '')
     # 如果输入课程是“操作系统”，直接返回固定路径
     if course_name.strip() == "操作系统":
-        return JsonResponse({
-            'path': ["C语言", "计算机组成原理", "汇编语言"],  # 硬编码的推荐路径
-            'graph_data': {}  # 知识图谱数据（暂时留空）
-        })
-
-    # 否则走原有逻辑（如调用 generate_recommendation）
+        data = {
+            'path': ["C语言", "计算机组成原理", "操作系统"],
+            'graph_data': {}
+        }
+        return JsonResponse(data, json_dumps_params={'ensure_ascii': False})
+        # 否则走原有逻辑（如调用 generate_recommendation）
     try:
         target = Course.objects.get(name=course_name)
         pre_courses, valid, target_name = generate_recommendation(target)

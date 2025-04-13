@@ -1,16 +1,29 @@
 function drawDependencyGraph(graphData) {
     const width = 1200;
     const height = 600;
+    const container = d3.select("#graphCanvas");
 
-    // 清理画布
-    d3.select("#graphCanvas").html("");
+    // 清空画布
+    container.html("");
 
-    const svg = d3.select("#graphCanvas")
-        .append("svg")
+    // 空数据提示
+    if (!graphData ||
+        !graphData.nodes ||
+        !graphData.links ||
+        graphData.nodes.length === 0) {
+
+        container.append("div")
+            .style("text-align", "center")
+            .style("padding", "20px")
+            .html("<h4>📭 暂无课程依赖关系数据</h4>");
+        return;  // 直接返回不执行后续绘图逻辑
+    }
+
+    // ---------- 以下是原有绘图逻辑 ----------
+    const svg = container.append("svg")
         .attr("width", width)
         .attr("height", height);
 
-    // 力导向图模拟
     const simulation = d3.forceSimulation()
         .force("link", d3.forceLink().id(d => d.id))
         .force("charge", d3.forceManyBody().strength(-800))
@@ -24,7 +37,7 @@ function drawDependencyGraph(graphData) {
         .attr("stroke", "#999")
         .attr("stroke-opacity", 0.6);
 
-    // 绘制节点
+    // 绘制节点（带颜色区分）
     const node = svg.append("g")
         .selectAll("circle")
         .data(graphData.nodes)
@@ -36,9 +49,15 @@ function drawDependencyGraph(graphData) {
             .on("drag", dragged)
             .on("end", dragended));
 
-    // 添加标签
-    node.append("title")
-        .text(d => d.name);
+    // 节点文字标签
+    const labels = svg.append("g")
+        .selectAll("text")
+        .data(graphData.nodes)
+        .enter().append("text")
+        .text(d => d.name)
+        .attr("font-size", 12)
+        .attr("dx", 25)
+        .attr("dy", 5);
 
     // 动态更新
     simulation
@@ -51,12 +70,15 @@ function drawDependencyGraph(graphData) {
 
             node.attr("cx", d => d.x)
                 .attr("cy", d => d.y);
+
+            labels.attr("x", d => d.x)
+                  .attr("y", d => d.y);
         });
 
     simulation.force("link")
         .links(graphData.links);
 
-    // 拖动交互
+    // 拖动交互函数
     function dragstarted(event) {
         if (!event.active) simulation.alphaTarget(0.3).restart();
         event.subject.fx = event.subject.x;
