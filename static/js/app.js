@@ -2,29 +2,41 @@
 // static/js/app.js
 function searchCourse() {
     const courseInput = document.getElementById('courseInput').value;
-    console.log("请求课程:", courseInput);  // 调试日志
 
     fetch(`/api/recommend/?course=${encodeURIComponent(courseInput)}`)
         .then(response => {
-            console.log("响应状态码:", response.status);  // 调试日志
             if (!response.ok) throw new Error(`HTTP 错误: ${response.status}`);
             return response.json();
         })
         .then(data => {
-            console.log("响应数据:", data);  // 调试日志
-            if (data.path) {
-                document.getElementById('pathResult').innerHTML = data.path.join(' → ');
-                drawDependencyGraph(data.graph_data);
-            } else {
-                throw new Error("响应未包含 path 字段");
+            const resultDiv = document.getElementById('pathResult');
+
+            if (data.error) {
+                // 显示错误消息
+                resultDiv.innerHTML = `<div class="error-msg">${data.error}</div>`;
+                return;
             }
+
+            // static/js/app.js
+            if (data.is_valid) {
+                const preCourses = data.pre_courses || [];
+                const targetName = data.target || '未知课程';
+                // 直接生成 {A，B}→目标课程 格式
+                const pathStr = `{${preCourses.join('，')}}→${targetName}`;
+                resultDiv.innerHTML = pathStr;
+                } else {
+                // 显示无效推荐信息
+                resultDiv.innerHTML = data.error_msg || '无推荐路径';
+            }
+
+            // 渲染知识图谱
+            drawDependencyGraph(data.graph_data);
         })
         .catch(error => {
             console.error("请求失败:", error);
             document.getElementById('pathResult').innerHTML = "⚠️ 获取推荐失败，请稍后重试。";
         });
-}
-// 显示推荐结果
+}// 显示推荐结果
 function displayRecommendation(data) {
     const resultDiv = document.getElementById('pathResult')
 
